@@ -39,6 +39,15 @@ def _design_json(role: str) -> dict[str, Any]:
     }
 
 
+_PLAN_REVIEW_JSON: dict[str, Any] = {
+    "ok": True,
+    "score": 0.9,
+    "issues": [],
+    "suggestions": [],
+    "missing_concerns": [],
+}
+
+
 _REVIEW_JSON: dict[str, Any] = {
     "ok": True,
     "score": 0.9,
@@ -72,6 +81,8 @@ _IR_JSON: dict[str, Any] = {
 def _fake_invoke_llm(system: str, user: str, *, model_env: str = "PLANNER_MODEL") -> str:
     """Pick a stub JSON response by spotting agent-specific keywords in the system prompt."""
     s = system.lower()
+    if "high-level review" in s:
+        return json.dumps(_PLAN_REVIEW_JSON)
     if "turn the brd into" in s:
         return json.dumps(_PLAN_JSON)
     if "principal architect reviewing" in s:

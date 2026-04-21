@@ -25,13 +25,23 @@ def _build_summary(state: MultiAgentState, mermaid_code: str) -> str:
     plan = state.get("plan", {})
     designs = state.get("designs", {})
     review = state.get("review", {})
+    plan_review = state.get("plan_review", {})
     lines = [
         "# Solution Summary",
         "",
         f"**Plan summary**: {plan.get('summary', '')}",
         "",
-        "## Self-Q&A Chain",
     ]
+    if plan_review:
+        lines += [
+            f"## Plan Review (round {state.get('plan_review_rounds', 0)})",
+            f"- ok: {plan_review.get('ok')}",
+            f"- score: {plan_review.get('score')}",
+            f"- issues: {plan_review.get('issues', [])}",
+            f"- missing_concerns: {plan_review.get('missing_concerns', [])}",
+            "",
+        ]
+    lines += ["## Self-Q&A Chain"]
     for qa in plan.get("qa_chain", []):
         lines += [f"- **Q**: {qa['question']}", f"  - **A**: {qa['answer']}"]
     lines += ["", "## Component Designs"]

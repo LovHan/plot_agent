@@ -5,12 +5,16 @@ Topology::
     START
       |
       v
-    planner --> executors (subgraph) --> reviewer
-                       ^                     |
-                       +----- not ok & retry +
-                                             | ok | review budget exhausted
-                                             v
-                                       mermaid_maker --> mermaid_renderer --> END
+    planner --> plan_reviewer
+      ^              |
+      |              +-- ok | budget exhausted --> executors (subgraph) --> reviewer
+      |                                                 ^                      |
+      +-- not ok & retry (plan_review_rounds < N) <-----|---- not ok & retry --+
+                                                        |                      |
+                                                        +----- ok | budget ----+
+                                                                               |
+                                                                               v
+                                                              mermaid_maker --> mermaid_renderer --> END
 
 Memory:
 - checkpointer: per-thread, resumable runs (optional).
@@ -24,9 +28,10 @@ from langgraph.graph import END, START, StateGraph
 
 from plot_agent.graph.nodes.mermaid_maker import mermaid_maker_node
 from plot_agent.graph.nodes.mermaid_renderer import mermaid_renderer_node
+from plot_agent.graph.nodes.plan_reviewer import plan_reviewer_node
 from plot_agent.graph.nodes.planner import planner_node
 from plot_agent.graph.nodes.reviewer import reviewer_node
-from plot_agent.graph.nodes.routing import route_after_review
+from plot_agent.graph.nodes.routing import route_after_plan_review, route_after_review
 from plot_agent.graph.subgraphs.executors import build_executor_subgraph
 from plot_agent.state import MultiAgentState
 
@@ -53,13 +58,19 @@ def build_brd_to_mermaid_pipeline(*, checkpointer=None, store=None):
 
     g = StateGraph(MultiAgentState)
     g.add_node("planner", planner_node)
+    g.add_node("plan_reviewer", plan_reviewer_node)
     g.add_node("executors", executor_subgraph)
     g.add_node("reviewer", reviewer_node)
     g.add_node("mermaid_maker", mermaid_maker_node)
     g.add_node("mermaid_renderer", mermaid_renderer_node)
 
     g.add_edge(START, "planner")
-    g.add_edge("planner", "executors")
+    g.add_edge("planner", "plan_reviewer")
+    g.add_conditional_edges(
+        "plan_reviewer",
+        route_after_plan_review,
+        {"planner": "planner", "executors": "executors"},
+    )
     g.add_edge("executors", "reviewer")
     g.add_conditional_edges(
         "reviewer",

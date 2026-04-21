@@ -110,8 +110,49 @@ class ComponentDesign(BaseModel):
         return _stringify(v)
 
 
-# ---------- Reviewer ----------
+# ---------- Reviewers ----------
+def _coerce_str_list(v: Any) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [v]
+    if isinstance(v, list):
+        return [_stringify(x) for x in v]
+    return [_stringify(v)]
+
+
+def _coerce_ok(v: Any) -> bool:
+    if isinstance(v, str):
+        return v.lower() in ("true", "yes", "1", "ok", "pass")
+    return bool(v)
+
+
+class PlanReviewReport(BaseModel):
+    """High-level architecture review produced before the executor subgraph runs."""
+
+    ok: bool = True
+    score: float = 0.0
+    issues: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+    missing_concerns: list[str] = Field(
+        default_factory=list,
+        description="Top-level concerns absent from the plan (e.g. DR, cost, compliance, observability).",
+    )
+
+    @field_validator("issues", "suggestions", "missing_concerns", mode="before")
+    @classmethod
+    def _coerce_lists(cls, v: Any) -> list[str]:
+        return _coerce_str_list(v)
+
+    @field_validator("ok", mode="before")
+    @classmethod
+    def _coerce_ok(cls, v: Any) -> bool:
+        return _coerce_ok(v)
+
+
 class ReviewReport(BaseModel):
+    """Low-level design review produced after executors elaborate each component."""
+
     ok: bool = True
     score: float = 0.0
     issues: list[str] = Field(default_factory=list)
@@ -121,20 +162,12 @@ class ReviewReport(BaseModel):
     @field_validator("issues", "suggestions", mode="before")
     @classmethod
     def _coerce_str_list(cls, v: Any) -> list[str]:
-        if v is None:
-            return []
-        if isinstance(v, str):
-            return [v]
-        if isinstance(v, list):
-            return [_stringify(x) for x in v]
-        return [_stringify(v)]
+        return _coerce_str_list(v)
 
     @field_validator("ok", mode="before")
     @classmethod
     def _coerce_ok(cls, v: Any) -> bool:
-        if isinstance(v, str):
-            return v.lower() in ("true", "yes", "1", "ok", "pass")
-        return bool(v)
+        return _coerce_ok(v)
 
 
 # ---------- Mermaid IR ----------
@@ -286,6 +319,7 @@ __all__ = [
     "QAPair",
     "TechPlan",
     "ComponentDesign",
+    "PlanReviewReport",
     "ReviewReport",
     "MermaidNode",
     "MermaidEdge",

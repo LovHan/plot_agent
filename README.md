@@ -29,29 +29,37 @@ Most LLM diagramming projects ask a single model to plan and emit the final arti
     START
       │
       ▼
-   planner ── (TechPlan + Self-Q&A CoT)
+   planner ─────▶ plan_reviewer ── (PlanReviewReport, ok? missing_concerns?)
+      ▲                 │
+      │                 ├── ok=false & rounds < N ──▶ back to planner (revise with feedback)
+      │                 │
+      │                 └── ok=true | plan budget exhausted ──▶ executors subgraph
+      │                                                              │
+      │                                                              ▼
+      │                                                          reviewer ── (ReviewReport, target_role?)
+      │                                                              │
+      │                                                 ┌────────────┴────────────┐
+      │                                                 │ ok=false & rounds < N   │ ok=true | design budget exhausted
+      │                                                 ▼                         ▼
+      │                                            back to executors        mermaid_maker → mermaid_renderer → END
       │
-      ▼
-  ┌───────── executors subgraph ─────────┐
-  │ frontend → backend → data            │
-  │      → devops → security → gate      │   ← N rounds; shared designs / scratchpad
-  └──────────────┬───────────────────────┘
-                 │
-                 ▼
-            reviewer ── (ReviewReport, ok? target_role?)
-                 │
-        ┌────────┴───────┐
-        │ ok=false &     │ ok=true | review budget exhausted
-        │ rounds < N     │
-        ▼                ▼
-   back to executors   mermaid_maker → mermaid_renderer → END
+      (planner reads plan_review.issues when revising)
 ```
+
+Two review stages, two rubrics:
+
+- **`plan_reviewer`** (high level, before elaboration): does the overall stack fit the BRD?
+  Is anything obviously missing (DR, compliance, cost)? Are the open questions the right ones?
+  Cheap: one extra LLM call saves ~10 executor calls when the plan needs reshaping.
+- **`reviewer`** (low level, after elaboration): are the component designs internally
+  consistent? Do `depends_on` relationships close? Does security align with backend interfaces?
 
 | Agent | Job | Output schema |
 | --- | --- | --- |
-| `planner` | Read the BRD; build a Self-Q&A chain (frontend / backend / runtime / integration / deployment / secrets / database / open questions) | `TechPlan` |
+| `planner` | Read the BRD; build a Self-Q&A chain (frontend / backend / runtime / integration / deployment / secrets / database / open questions). Revises when `plan_reviewer` pushes back. | `TechPlan` |
+| `plan_reviewer` | High-level architecture critique before elaboration: stack coherence, BRD fit, missing concerns. Bounces the plan back to `planner` when weak. | `PlanReviewReport` |
 | `executors/{role}` × 5 | Read the plan, peer designs, and reviewer feedback; refine just this role | `ComponentDesign` |
-| `reviewer` | Check interface / dependency / deployment consistency; nominate a `target_role` | `ReviewReport` |
+| `reviewer` | Low-level design review: interface / dependency / deployment consistency; nominate a `target_role` | `ReviewReport` |
 | `mermaid_maker` | Designs → colour-coded nodes / semantic edges / subgraph groups, with optional iconify logos | `MermaidIR` |
 | `mermaid_renderer` | IR → `.mmd` + `summary.md` (+ optional PNG via Kroki / mmdc) | files |
 

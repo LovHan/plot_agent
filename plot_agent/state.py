@@ -36,6 +36,9 @@ class MultiAgentState(TypedDict, total=False):
 
     brd: str
     plan: dict[str, Any]
+    plan_review: dict[str, Any]
+    plan_review_rounds: int
+
     designs: Annotated[dict[str, dict[str, Any]], _merge_dict]
     exec_scratch: Annotated[dict[str, Any], _merge_dict]
 
