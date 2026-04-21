@@ -8,7 +8,7 @@
 
 ![demo](docs/img/databricks_demo.png)
 
-> *Above: a Databricks Lakehouse BRD fed in, ~11 minutes later this diagram is produced end-to-end.*
+> *Above: `samples/Databricks_Project_BRD.pdf` fed in, ~11 minutes later this diagram is produced end-to-end (13 nodes, 20 semantic edges, official brand logos via iconify). The matching `summary.md` in the same run records the plan-reviewer verdict `ok=True score=0.84`, 5 advisory issues, and 7 missing_concerns (DR, SLOs, cost, observability depth, data residency, identity federation, semantic-layer ownership) — architectural gaps the BRD didn't explicitly call out.*
 
 ---
 
