@@ -55,7 +55,7 @@ Deep dive on state, schemas, harness details, and design trade-offs: [`docs/ARCH
 ## Quickstart
 
 ```bash
-git clone https://github.com/LovHan/plot_agent.git
+git clone https://github.com/LovHan/archimaid-multi-agent-architecture-diagrams.git
 cd plot_agent
 
 poetry install                  # registers the `plot-agent` console script

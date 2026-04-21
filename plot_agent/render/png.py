@@ -32,7 +32,7 @@ class RenderError(RuntimeError):
     """PNG rendering failed (every backend was unavailable or returned an error)."""
 
 
-_UA = "plot-agent/0.1 (+https://github.com/LovHan/plot_agent)"
+_UA = "plot-agent/0.1 (+https://github.com/LovHan/archimaid-multi-agent-architecture-diagrams)"
 
 
 def _render_kroki(mermaid_text: str) -> bytes:
