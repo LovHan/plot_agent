@@ -257,9 +257,19 @@ class MermaidIR(BaseModel):
         return merged
 
     def _node_label(self, n: MermaidNode) -> str:
-        """Embed an iconify logo above the label when ``icon`` is set."""
+        """Embed an iconify logo above the label when ``icon`` is set.
+
+        We pin BOTH width and height.  Iconify SVGs have wildly different viewBox /
+        intrinsic dimensions across collections (``logos:`` vs ``simple-icons:`` vs
+        ``devicon:``); without a height cap some logos (e.g. ``simple-icons:databricks``)
+        render much larger than others, making the diagram look unbalanced.
+        """
         if n.icon:
-            return f'<img src="{_iconify_url(n.icon)}" width="28"/><br/>{n.label}'
+            return (
+                f'<img src="{_iconify_url(n.icon)}" width="28" height="28" '
+                f'style="object-fit:contain;vertical-align:middle"/>'
+                f"<br/>{n.label}"
+            )
         return n.label
 
     def to_mermaid(self) -> str:

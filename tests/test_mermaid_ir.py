@@ -42,13 +42,16 @@ def test_link_style_matches_edge_style():
     assert "linkStyle 0 " not in text
 
 
-def test_icon_embeds_iconify_img():
+def test_icon_embeds_iconify_img_with_bounded_size():
     ir = MermaidIR(
         nodes=[MermaidNode(id="db", label="Postgres", shape="cyl", icon="logos:postgresql")],
     )
     text = ir.to_mermaid()
-    assert 'api.iconify.design/logos/postgresql.svg' in text
+    assert "api.iconify.design/logos/postgresql.svg" in text
     assert "<img" in text
+    # both width AND height pinned so mismatched iconify viewBoxes don't blow up the layout
+    assert 'width="28"' in text and 'height="28"' in text
+    assert "object-fit:contain" in text
     assert "Postgres" in text
 
 
