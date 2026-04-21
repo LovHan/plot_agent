@@ -1,6 +1,6 @@
 # plot-agent
 
-> **BRD → Mermaid 架构图**：把一份业务需求文档丢给一组 LangGraph 多智能体，10 分钟后产出一张可读的 Mermaid 流程图、一份带 Self-Q&A 的方案摘要，以及导出的 PNG。
+> **BRD → Mermaid architecture diagram.** Hand a Business Requirements Document to a team of LangGraph agents and get back a readable Mermaid flowchart, a Self-Q&A solution summary, and a rendered PNG.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -8,22 +8,22 @@
 
 ![demo](docs/img/databricks_demo.png)
 
-> *上图：把一份 Databricks Lakehouse BRD 喂进去，11 分钟后自动产出。*
+> *Above: a Databricks Lakehouse BRD fed in, ~11 minutes later this diagram is produced end-to-end.*
 
 ---
 
-## 为什么再做一个"AI 画图"
+## Why another "AI diagrammer"
 
-大多数 LLM 画图方案让单个模型既要规划又要出最终产物，错误累积严重。**plot-agent** 的思路：
+Most LLM diagramming projects ask a single model to plan and emit the final artifact in one shot, which compounds errors. **plot-agent** takes a different cut:
 
-1. **职责拆给多个 agent**：planner 给方案 → 5 个 executor (frontend/backend/data/devops/security) 多轮互审 → reviewer 把关 → mermaid_maker 出结构化 IR → renderer 出图。
-2. **Harness 工程**：每个 agent 的输入/输出由 Pydantic schema 锁住；LLM 失败 → repair loop → 仍失败 → 抛 `LLMCallError`，**绝不静默 fallback 假数据**（开源仓库里看不到任何业务偏见的硬编码）。
-3. **Mermaid IR 解耦**：LLM 只产 IR，文本生成与 PNG 渲染都由代码完成；可换 graphviz / drawio / excalidraw 等任意后端。
-4. **可观测**：state 自带 `trace` append-only 日志 + 每节点 `AIMessage`；`stream_mode="updates"` 实时打每个 agent 返回。
+1. **Split responsibilities across agents.** A planner produces a tech plan; five executor roles (`frontend / backend / data / devops / security`) iterate in a subgraph, each seeing its peers' decisions; a reviewer gates progress; a `mermaid_maker` emits a structured IR; a `mermaid_renderer` writes `.mmd`, `summary.md`, and a PNG.
+2. **Harness engineering, not vibes.** Every agent's input/output is locked by a Pydantic schema. LLM failures go through a repair loop and otherwise raise `LLMCallError`. **There are no hard-coded business fallbacks anywhere in the package** — the open-source repo is free of opinionated defaults pretending to be agent output.
+3. **Decouple via a Mermaid IR.** The LLM only emits IR. Text generation and PNG rendering live in plain Python; you can swap in Graphviz / Excalidraw / draw.io backends.
+4. **Observable.** State carries an append-only `trace` and one `AIMessage` per agent. Use `app.stream(..., stream_mode="updates")` to watch every agent's reply live.
 
 ---
 
-## Pipeline 拓扑
+## Pipeline topology
 
 ```
     START
@@ -34,46 +34,46 @@
       ▼
   ┌───────── executors subgraph ─────────┐
   │ frontend → backend → data            │
-  │      → devops → security → gate      │   ← N 轮互审，共享 designs / scratchpad
+  │      → devops → security → gate      │   ← N rounds; shared designs / scratchpad
   └──────────────┬───────────────────────┘
                  │
                  ▼
             reviewer ── (ReviewReport, ok? target_role?)
                  │
         ┌────────┴───────┐
-        │ ok=false &     │ ok=true | review_rounds 达额度
+        │ ok=false &     │ ok=true | review budget exhausted
         │ rounds < N     │
         ▼                ▼
-     回到 executors   mermaid_maker → mermaid_renderer → END
+   back to executors   mermaid_maker → mermaid_renderer → END
 ```
 
-| Agent | 职责 | 产物 schema |
+| Agent | Job | Output schema |
 | --- | --- | --- |
-| `planner` | 读 BRD，自问自答（前端/后端/runtime/集成/部署/secret/数据库/未决问题） | `TechPlan` |
-| `executors/{role}` × 5 | 读 plan + 同伴 designs + reviewer 反馈，迭代自己那块 | `ComponentDesign` |
-| `reviewer` | 检查接口/依赖/部署一致性，指出 `target_role` | `ReviewReport` |
-| `mermaid_maker` | designs → 节点/边/分组 | `MermaidIR` |
-| `mermaid_renderer` | IR → `.mmd` + `summary.md` (+可选 PNG via Kroki/mmdc) | 文件 |
+| `planner` | Read the BRD; build a Self-Q&A chain (frontend / backend / runtime / integration / deployment / secrets / database / open questions) | `TechPlan` |
+| `executors/{role}` × 5 | Read the plan, peer designs, and reviewer feedback; refine just this role | `ComponentDesign` |
+| `reviewer` | Check interface / dependency / deployment consistency; nominate a `target_role` | `ReviewReport` |
+| `mermaid_maker` | Designs → nodes / edges / groups | `MermaidIR` |
+| `mermaid_renderer` | IR → `.mmd` + `summary.md` (+ optional PNG via Kroki / mmdc) | files |
 
 ---
 
-## 快速开始
+## Quickstart
 
-### 安装
+### Install
 
 ```bash
 git clone https://github.com/LovHan/plot_agent.git
 cd plot_agent
 
-poetry install                  # 注册 plot-agent 命令
-cp .env.example .env            # 然后填 OPENAI_API_KEY
+poetry install                  # registers the `plot-agent` console script
+cp .env.example .env            # then fill in OPENAI_API_KEY
 ```
 
-可选：
+Optional extras:
 
 ```bash
-poetry add pypdf                          # 直接喂 .pdf 作为 BRD
-npm i -g @mermaid-js/mermaid-cli          # 离线 PNG 渲染（不装则走 Kroki）
+poetry install -E pdf                     # feed .pdf BRDs directly (adds pypdf)
+npm i -g @mermaid-js/mermaid-cli          # offline PNG rendering (otherwise Kroki HTTP is used)
 ```
 
 ### CLI
@@ -81,24 +81,24 @@ npm i -g @mermaid-js/mermaid-cli          # 离线 PNG 渲染（不装则走 Kro
 ```bash
 plot-agent --help
 
-# 全链路：BRD → planner → executors → reviewer → mermaid → PNG
+# Full pipeline: BRD → planner → executors → reviewer → mermaid → PNG
 plot-agent generate samples/databricks_brd.txt
 
-# .pdf 输入；不出 PNG，只要 .mmd + summary.md
+# .pdf input (requires the `pdf` extra), skip PNG, write only .mmd + summary.md
 plot-agent generate samples/Databricks_Project_BRD.pdf --no-png
 
-# 已有 .mmd 重新出 PNG（零 token，秒级）
+# Re-render PNG from an existing .mmd (no LLM tokens, runs in seconds)
 plot-agent render out/diagram.mmd
 plot-agent render out/diagram.mmd --backend mmdc --out diagram.png
 ```
 
-输出默认放在 `out/`：
+Default output goes to `out/`:
 
 ```
 out/
-├── diagram.mmd        # mermaid 源码
-├── diagram.png        # 渲染图（默认 Kroki HTTP，可换 mmdc）
-└── summary.md         # plan + designs + review + mermaid 嵌入
+├── diagram.mmd        # mermaid source
+├── diagram.png        # rendered (default: Kroki HTTP; mmdc available too)
+└── summary.md         # plan + designs + review + embedded mermaid
 ```
 
 ### Python API
@@ -125,7 +125,7 @@ print(result["mermaid_code"])
 
 ---
 
-## 工程结构
+## Project layout
 
 ```
 plot_agent/
@@ -133,9 +133,9 @@ plot_agent/
 ├── llm.py                       # call_structured: LLM→JSON→schema, repair loop, LLMCallError
 ├── schemas.py                   # TechPlan / ComponentDesign / ReviewReport / MermaidIR
 ├── state.py                     # MultiAgentState + reducers
-├── memory.py                    # InMemorySaver / InMemoryStore 工厂
+├── memory.py                    # InMemorySaver / InMemoryStore factories
 ├── graph/
-│   ├── builder.py               # 顶层 pipeline 装配
+│   ├── builder.py               # top-level pipeline assembly
 │   ├── nodes/
 │   │   ├── planner.py
 │   │   ├── reviewer.py
@@ -143,16 +143,16 @@ plot_agent/
 │   │   ├── mermaid_renderer.py
 │   │   └── routing.py
 │   └── subgraphs/
-│       ├── executors.py         # round-robin 子图
+│       ├── executors.py         # round-robin executor subgraph
 │       └── roles/
 │           ├── _common.py       # context slicing + run_role()
 │           ├── frontend.py / backend.py / data.py / devops.py / security.py
 └── render/
     ├── __init__.py
-    └── png.py                   # Kroki HTTP (默认) + mmdc fallback
+    └── png.py                   # Kroki HTTP (default) + mmdc fallback
 tests/
-├── conftest.py                  # stub_llm fixture：CI 不需要 OPENAI_API_KEY
-└── test_smoke.py                # 4 个测试：端到端 / 带 memory / 互动证据 / 失败传播
+├── conftest.py                  # stub_llm fixture; CI needs no OPENAI_API_KEY
+└── test_smoke.py                # 4 tests: end-to-end / with memory / interaction proof / failure propagation
 samples/
 ├── databricks_brd.txt
 └── Databricks_Project_BRD.pdf
@@ -160,66 +160,66 @@ samples/
 
 ---
 
-## 配置
+## Configuration
 
-`.env` 支持的变量（参见 `.env.example`）：
+Variables read from `.env` (see `.env.example`):
 
-| 变量 | 默认 | 说明 |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | — | 必填 |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI 兼容端点（Azure / vLLM / Ollama-shim 都行） |
-| `PLANNER_MODEL` | — | planner / executors / mermaid_maker 用 |
-| `CRITIC_MODEL` | 回退 PLANNER_MODEL | reviewer 用 |
-| `OPENAI_MODEL` | 最末层兜底 | 当上面都未设时使用 |
-| `KROKI_URL` | `https://kroki.io` | 私有部署的 Kroki 时改这里 |
-| `KROKI_TIMEOUT` | `30` | 秒 |
+| `OPENAI_API_KEY` | — | required |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | any OpenAI-compatible endpoint (Azure OpenAI / vLLM / Ollama-shim) |
+| `PLANNER_MODEL` | — | used by planner / executors / mermaid_maker |
+| `CRITIC_MODEL` | falls back to PLANNER_MODEL | used by reviewer |
+| `OPENAI_MODEL` | last-resort fallback | used when neither of the above is set |
+| `KROKI_URL` | `https://kroki.io` | point to a self-hosted Kroki if needed |
+| `KROKI_TIMEOUT` | `30` | seconds |
 
-调参：
+Tunables in code:
 
-| 位置 | 默认 | 说明 |
+| Location | Default | Purpose |
 | --- | --- | --- |
-| `subgraphs/executors.py::MAX_EXECUTOR_TURNS` | 2 | executor 子图轮数 |
-| `nodes/reviewer.py::MAX_REVIEW_ROUNDS` | 2 | reviewer 不通过最多回 executors 几次 |
-| `llm.py::_NETWORK_RETRIES` | 3 | LLM 网络瞬态错误重试 |
+| `subgraphs/executors.py::MAX_EXECUTOR_TURNS` | 2 | rounds inside the executor subgraph |
+| `nodes/reviewer.py::MAX_REVIEW_ROUNDS` | 2 | how many times reviewer can bounce back to executors |
+| `llm.py::_NETWORK_RETRIES` | 3 | exponential backoff on transient LLM network errors |
 
 ---
 
-## 测试
+## Tests
 
 ```bash
 poetry run pytest -q
 ```
 
-`tests/conftest.py` 用 `monkeypatch` 把 `_invoke_llm` 替换成按 system prompt 关键词路由的 stub JSON——CI 不需要任何 API key，且测试用的 stub 数据**与生产代码完全隔离**。
+`tests/conftest.py` monkeypatches `_invoke_llm` to return stub JSON keyed by the agent's system prompt. CI needs no API key, and the stub data lives **only in tests** — it never leaks into the `plot_agent/` package.
 
 ---
 
-## Harness Engineering 落地点
+## Harness engineering checklist
 
-| 维度 | 实现 |
+| Concern | Implementation |
 | --- | --- |
-| **Context slicing** | `_role_context()` 给每个 executor 只喂 plan + 同伴 designs + scratch + 针对自己的 reviewer feedback |
-| **Schema hard-contract** | 每个 agent 输入输出走 Pydantic；LLM 必须出 JSON |
-| **Repair loop** | `call_structured` 解析失败把 error 拼回 prompt 再试，到顶则抛 `LLMCallError` |
-| **Network retry** | `_invoke_llm` 对 `APIConnectionError`/`APITimeoutError`/`RateLimitError` 指数退避重试 |
-| **Bounded retries** | `MAX_EXECUTOR_TURNS=2` / `MAX_REVIEW_ROUNDS=2`，强制收敛 |
-| **Memory 双层** | `InMemorySaver`（thread 级 checkpoint）+ `InMemoryStore`（项目级长期记忆） |
-| **Observability** | append-only `trace` 字段 + 每个节点 `AIMessage`；`app.stream(..., stream_mode="updates")` 拿 per-node 事件 |
-| **No silent fallback** | 失败永远抛 `LLMCallError`，由调用方决定如何处理；包内不内置任何业务硬编码兜底 |
+| **Context slicing** | `_role_context()` feeds each executor only the plan, peer designs, scratchpad, and any reviewer feedback addressed to that role |
+| **Schema hard contract** | Pydantic schema at every agent boundary; LLM must return JSON |
+| **Repair loop** | `call_structured` re-prompts with the validation error on parse failure; raises `LLMCallError` after the budget |
+| **Network retry** | `_invoke_llm` retries on `APIConnectionError` / `APITimeoutError` / `RateLimitError` with exponential backoff |
+| **Bounded retries** | `MAX_EXECUTOR_TURNS=2` / `MAX_REVIEW_ROUNDS=2`; the graph always terminates |
+| **Memory, two tiers** | `InMemorySaver` (per-thread checkpoints) + `InMemoryStore` (project-level long-term memory) |
+| **Observability** | Append-only `trace`, one `AIMessage` per agent, and `stream_mode="updates"` for live per-node events |
+| **No silent fallback** | Failures always raise `LLMCallError`; nothing in the package fakes agent output |
 
 ---
 
 ## Roadmap
 
-- [ ] Reviewer feedback 只重跑 `target_role`，而不是全员再跑一轮
-- [ ] `graph_linter` 节点：自动检测依赖环并触发重试
-- [ ] `Send` API 并行 executors（一轮 5 个 role 同时跑，从 ~10min 压到 ~2min）
-- [ ] `SqliteSaver` 持久 checkpointer，跑到一半崩可续跑
-- [ ] Human-in-the-loop：reviewer issues 出现时打断 graph，等人工确认
-- [ ] 多 backend：Graphviz / Excalidraw / draw.io 渲染目标
-- [ ] LangSmith / LangFuse tracing 集成
+- [ ] Reviewer feedback re-runs only the `target_role`, not the whole executor subgraph
+- [ ] `graph_linter` node: detect dependency cycles in `MermaidIR` and trigger a retry
+- [ ] Parallel executors via `Send` API (one round of 5 roles concurrently; ~10 min → ~2 min)
+- [ ] `SqliteSaver` checkpointer for resumable runs across processes
+- [ ] Human-in-the-loop: pause on reviewer issues and wait for an ack
+- [ ] Additional render backends: Graphviz / Excalidraw / draw.io
+- [ ] LangSmith / LangFuse tracing integration
 
-欢迎 PR / Issue。
+PRs and issues welcome.
 
 ---
 
